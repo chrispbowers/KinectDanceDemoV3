@@ -52,6 +52,7 @@ namespace KinectTestv2
        
         public void updatePicture(byte[] colourFrameData)
         {
+           // System.Diagnostics.Debug.WriteLine("updatePicture - " + System.DateTime.Now);
             // Next get the frame's description and create an output bitmap image.
             bitmap = new Bitmap(colorWidth, colorHeight, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
 
@@ -64,18 +65,16 @@ namespace KinectTestv2
 
             // Finally, unlock the output image's raw data again and create a new bitmap for the preview picture box.
             bitmap.UnlockBits(imageData);
-            
+
             pictureBox.Image = bitmap;
+            pictureBox.Update(); //force sync update
            
         }
 
         private void pictureBox_Paint(object sender, System.Windows.Forms.PaintEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("pictureBox_Paint - " + System.DateTime.Now);
-            if(bitmap!=null) bitmap.Dispose();
-
-
-            //  pictureBox.Image = bitmap;
+            //System.Diagnostics.Debug.WriteLine("pictureBox_Paint - " + System.DateTime.Now);
+           
 
             Graphics g = e.Graphics;
 

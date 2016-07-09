@@ -58,7 +58,12 @@ namespace KinectTestv2
             glControl.Load += glControl_Load;
             glControl.Paint += glControl_Paint;
             glControl.Resize += glControl1_Resize;
-            
+
+            glControl.MouseMove += new MouseEventHandler(glControl_MouseMove);
+            glControl.MouseDown += new MouseEventHandler(glControl_MouseDown);
+            glControl.MouseUp += new MouseEventHandler(glControl_MouseUp);
+
+
         }
 
 
@@ -79,16 +84,15 @@ namespace KinectTestv2
         private void glControl_Paint(object sender, PaintEventArgs e)
         {
             //System.Diagnostics.Debug.WriteLine("glControl_Paint");
-            Render();
+            //Render();
         }
 
         public void Render()
         {
-            System.Diagnostics.Debug.WriteLine("Render - " + System.DateTime.Now);
+           // System.Diagnostics.Debug.WriteLine("Render - " + System.DateTime.Now);
             if (loaded && rendered)
             {
 
-                glControl.MakeCurrent();
 
                 //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -119,34 +123,26 @@ namespace KinectTestv2
                 GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
                 GL.Enable(EnableCap.Blend);
 
-                /*
-                GL.Begin(BeginMode.Points);
-                for (int i = 0; i < depthWidth * depthHeight; i++)
-                {
-
-                    //GL.Color4(colorarray[i * 3 + 0], colorarray[i * 3 + 1], colorarray[i * 3 + 2], fadeState);
-                    //GL.Vertex3(vertexarray[i * 3 + 0], vertexarray[i * 3 + 1], vertexarray[i * 3 + 2]);
-                }
-
-                GL.End();*/
-
-                GL.Begin(BeginMode.Points);
+            
+              
 
                 GL.EnableClientState(ArrayCap.VertexArray);
                 GL.EnableClientState(ArrayCap.ColorArray);
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vbo_id);
-        
                 GL.VertexPointer(3, VertexPointerType.Float, Vector3.SizeInBytes, 0);
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, cbo_id);
                 GL.ColorPointer(4, ColorPointerType.Float, Vector4.SizeInBytes, 0);
-           
+               
 
                 GL.DrawArrays(BeginMode.Points, 0, vbo_size);
-                GL.End();
-                //GL.DisableClientState(ArrayCap.VertexArray);
-                //GL.DisableClientState(ArrayCap.ColorArray);
+
+                GL.DeleteBuffer(vbo_id);
+                GL.DeleteBuffer(cbo_id);
+
+                GL.DisableClientState(ArrayCap.VertexArray);
+                GL.DisableClientState(ArrayCap.ColorArray);
 
 
                 glControl.SwapBuffers();
@@ -186,17 +182,14 @@ namespace KinectTestv2
 
 
     
+        public void updateVertices(Vector4[] colorarray, Vector3[] vertexarray) {
 
-
-            public void updateVertices(Vector4[] colorarray, Vector3[] vertexarray) {
-
-            System.Diagnostics.Debug.WriteLine("updating vertices - vertex size = " + vertexarray.Length + ", colour size = " + colorarray.Length);
+            //System.Diagnostics.Debug.WriteLine("updating vertices - vertex size = " + vertexarray.Length + ", colour size = " + colorarray.Length);
 
            
+            vbo_size = vertexarray.Length;
+
             //load point cloud into a vertex buffer object
-
-            vbo_size = vertexarray.Length; // Necessary for rendering later on
-
             GL.GenBuffers(1, out vbo_id);
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo_id);
             GL.BufferData(BufferTarget.ArrayBuffer,
@@ -213,7 +206,7 @@ namespace KinectTestv2
             rendered = true;
 
             Render();
-           // glControl.Invalidate();
+            //glControl.Invalidate();
            // glControl.Update();
         }
 
