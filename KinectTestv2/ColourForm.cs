@@ -67,7 +67,7 @@ namespace KinectTestv2
             bitmap.UnlockBits(imageData);
 
             pictureBox.Image = bitmap;
-            pictureBox.Update(); //force sync update
+           pictureBox.Update(); //force sync update
            
         }
 

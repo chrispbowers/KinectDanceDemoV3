@@ -19,7 +19,11 @@ namespace KinectTestv2
         int maxFaceFrameGap = 5;
 
         //how many face frames should the face propery exists before we act
-        int faceBufferSize = 1;
+        int mouthWindowSize = 1;
+        int eyeWindowSize = 4;
+        int engagedWindowSize = 1;
+        int expressionWindowSize = 1;
+        int glassesWindowSize = 1;
 
         //frame sizes
         static int depthWidth = 512;
@@ -40,28 +44,32 @@ namespace KinectTestv2
         Bitmap outputImage = null;
 
         //windows form components
-        RGB_3Dform1 rawCloud;
         RGB_3Dform1 processedCloud;
         ColourForm colourForm;
 
-
-        Graphics graphics;
-
         //demo states
-
+        Graphics graphics;
         int firstSeenbodyIndex = -1;
-
         int bodyCount;
+        bool displayRaw = false;
+        bool allBodiesLookingAtCamera = true;
 
         //user face expression states
-        int[] mouthOpenCount;
-        int[] eyesClosedCount;
-        int[] lookingAtSensorCount;
-        bool[] mouthOpen;
-        bool[] eyesClosed;
-        bool[] lookingAtSensor;
+        int[] mouthCount;
+        int[] eyeRightCount;
+        int[] eyeLeftCount;
+        int[] engagedCount;
+        int[] expressionCount;
+        int[] glassesCount;
 
-        bool displayRaw = false;
+        DetectionResult[] mouth;
+        DetectionResult[] eyeRight;
+        DetectionResult[] eyeLeft;
+        DetectionResult[] engaged;
+        DetectionResult[] expression;
+        DetectionResult[] glasses;
+
+       
 
         private IKeyboardMouseEvents m_GlobalHook;
 
@@ -81,26 +89,10 @@ namespace KinectTestv2
 
         Dictionary<Vector3, OpenTK.Vector4> RGBpointCloud = new Dictionary<Vector3, OpenTK.Vector4>(); 
 
-        //Vector3[] rawvertexarray = new Vector3[depthWidth * depthHeight];
-        //OpenTK.Vector4[] rawcolorarray = new OpenTK.Vector4[depthWidth * depthHeight];
-
-
-
-        float[] colorarray = null;
-        float[] vertexarray = null;
-
-
-
-
-
         //store array of tracked bodies
-        Body[] bodies = null;
+        Body[] bodies = new Body[6];
 
         KinectSensor _sensor;
-
-
-        
-
 
 
 
@@ -125,14 +117,21 @@ namespace KinectTestv2
                 bodyCount = _sensor.BodyFrameSource.BodyCount;
 
                 //user face expression states counter
-                mouthOpenCount = new int[bodyCount];
-                eyesClosedCount = new int[bodyCount];
-                lookingAtSensorCount = new int[bodyCount];
-                mouthOpen = new bool[bodyCount];
-                eyesClosed = new bool[bodyCount];
-                lookingAtSensor = new bool[bodyCount];
+                mouthCount = new int[bodyCount];
+                eyeRightCount = new int[bodyCount];
+                eyeLeftCount = new int[bodyCount];
+                engagedCount = new int[bodyCount];
+                expressionCount = new int[bodyCount];
+                glassesCount = new int[bodyCount];
 
-                bodies = new Body[bodyCount];
+                mouth = new DetectionResult[bodyCount];
+                eyeRight = new DetectionResult[bodyCount];
+                eyeLeft = new DetectionResult[bodyCount];
+                engaged = new DetectionResult[bodyCount];
+                expression = new DetectionResult[bodyCount];
+                glasses = new DetectionResult[bodyCount];
+
+               
 
                 FaceFrameFeatures faceFeatures = FaceFrameFeatures.BoundingBoxInColorSpace |
                                                  FaceFrameFeatures.FaceEngagement |
@@ -143,7 +142,6 @@ namespace KinectTestv2
                                                  FaceFrameFeatures.PointsInColorSpace |
                                                  FaceFrameFeatures.RightEyeClosed;
 
-
                 faceFrameSources = new FaceFrameSource[bodyCount];
                 faceFrameReaders = new FaceFrameReader[bodyCount];
                 faceFrameResults = new FaceFrameResult[bodyCount];
@@ -153,40 +151,28 @@ namespace KinectTestv2
                 {
                     faceFrameSources[i] = new FaceFrameSource(_sensor, 0, faceFeatures);
                     faceFrameReaders[i] = faceFrameSources[i].OpenReader();
-                    //faceFrameReaders[i].FrameArrived += FaceReaderFrameArrived;
-
-
                 }
 
                 multiSourceFrameReader.MultiSourceFrameArrived += MultiSourceFrameArrived;
 
-
-
-
-
                 _sensor.Open();
-
-
 
             }
 
-
-
-            rawCloud = new RGB_3Dform1();
             processedCloud = new RGB_3Dform1();
             colourForm = new ColourForm(_mapper);
 
-
-
-            //rawCloud.MdiParent = this;
             //processedCloud.MdiParent = this;
             //colourForm.MdiParent = this;
 
-            rawCloud.Show();
             processedCloud.Show();
             colourForm.Show();
 
+        }
 
+
+        private void FormMDImain_Load(object sender, EventArgs e)
+        {
 
         }
 
@@ -211,6 +197,7 @@ namespace KinectTestv2
         private void MultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
             //System.Diagnostics.Debug.WriteLine("MultiSourceFrameArrived - " + faceFrameGapCounter + " - " + System.DateTime.Now);
+
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
             colorFrameProcessed = false;
@@ -219,17 +206,13 @@ namespace KinectTestv2
             bodyIndexFrameProcessed = false;
 
 
-
-
-            if (multiSourceFrame == null)
-                return;
+            if (multiSourceFrame == null) return;
 
             using (BodyFrame bodyFrame = multiSourceFrame.BodyFrameReference.AcquireFrame())
             {
                 if (bodyFrame != null)
                 {
                     bodyFrame.GetAndRefreshBodyData(bodies);
-
 
                     // iterate through each face source
                     for (int i = 0; i < this.bodyCount; i++)
@@ -245,8 +228,6 @@ namespace KinectTestv2
                             }
                         }
                     }
-
-
                     bodyFrameProcessed = true;
                     
                 }
@@ -314,20 +295,13 @@ namespace KinectTestv2
             }
            
 
-
-
+            // update draw states if new data
             if (bodyFrameProcessed) colourForm._bodies = bodies;
             if (colorFrameProcessed) colourForm.updatePicture(colourFrameData);
             if (faceFrameGapCounter == 0) faceState();
+            if (depthFrameProcessed && colorFrameProcessed && bodyIndexFrameProcessed && faceFrameGapCounter < maxFaceFrameGap) CreateVertices();
 
-
-            if (depthFrameProcessed && colorFrameProcessed && bodyIndexFrameProcessed && faceFrameGapCounter < maxFaceFrameGap)
-            {
-
-                CreateVertices();
-
-
-            }
+            //iterate facegap counter to maintain count of number of frames since last processing a face
             faceFrameGapCounter++;
 
         }
@@ -335,9 +309,8 @@ namespace KinectTestv2
 
         public void faceState()
         {
-            System.Diagnostics.Debug.WriteLine("faceState - " + System.DateTime.Now);
-
-            bool allBodiesLookingAtCamera = true;
+            //System.Diagnostics.Debug.WriteLine("faceState - " + System.DateTime.Now);
+   
             int trackedBodyCount = 0;
 
             for (int i = 0; i < bodyCount; i++)
@@ -346,49 +319,54 @@ namespace KinectTestv2
                 {
                     
 
-                    //mouth open
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen] == prevFaceFrameResults[i].FaceProperties[FaceProperty.MouthOpen]) mouthOpenCount[i]++;
-                    else mouthOpenCount[i] = 0;
-                    if (mouthOpenCount[i] >= faceBufferSize)
-                    {
-                        mouthOpen[i] = faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen] == DetectionResult.Yes;
+                    //mouth
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen] == prevFaceFrameResults[i].FaceProperties[FaceProperty.MouthOpen]) mouthCount[i]++;
+                    else mouthCount[i] = 0;
+                    if (mouthCount[i] >= mouthWindowSize) mouth[i] = faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen];
                         
-                    }
+                    //eyes right
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed]) eyeRightCount[i]++;
+                    else eyeRightCount[i] = 0;
+                    if (eyeRightCount[i] >= eyeWindowSize) eyeRight[i] = faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed];
 
-                        //eyes closed
-                        if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed]
-                        &&
-                        faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed])
-                        eyesClosedCount[i]++;
-                    else eyesClosedCount[i] = 0;
-                    if (eyesClosedCount[i] >= faceBufferSize)
-                    {
-                        eyesClosed[i] = faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == DetectionResult.Yes || faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == DetectionResult.Yes;
+                    //eyes left
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed]) eyeLeftCount[i]++;
+                    else eyeLeftCount[i] = 0;
+                    if (eyeLeftCount[i] >= eyeWindowSize) eyeLeft[i] = faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed];
 
+                    //engaged
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.Engaged] == prevFaceFrameResults[i].FaceProperties[FaceProperty.Engaged]) engagedCount[i]++;
+                    else engagedCount[i] = 0;
+                    if (engagedCount[i] > engagedWindowSize) engaged[i] = faceFrameResults[i].FaceProperties[FaceProperty.Engaged];
 
-                    }
+                    //expression
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.Happy] == prevFaceFrameResults[i].FaceProperties[FaceProperty.Happy]) expressionCount[i]++;
+                    else expressionCount[i] = 0;
+                    if (expressionCount[i] > expressionWindowSize) expression[i] = faceFrameResults[i].FaceProperties[FaceProperty.Happy];
 
-                    //looking at camera
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.Engaged] == prevFaceFrameResults[i].FaceProperties[FaceProperty.Engaged]) lookingAtSensorCount[i]++;
-                    else lookingAtSensorCount[i] = 0;
-                    if (lookingAtSensorCount[i] > faceBufferSize)
-                    {
-                        lookingAtSensor[i] = faceFrameResults[i].FaceProperties[FaceProperty.Engaged] == DetectionResult.Yes;
+                    //glasses
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses] == prevFaceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses]) glassesCount[i]++;
+                    else glassesCount[i] = 0;
+                    if (glassesCount[i] > glassesWindowSize) glasses[i] = faceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses];
 
-                    }
-
-
-                   // System.Diagnostics.Debug.WriteLine("user - " + i + " mouth=" + mouthOpen[i]);
-
-
+                  
                     //check to see if all bodies are looking at the camera
                     trackedBodyCount++;
-                    if (!lookingAtSensor[i]) allBodiesLookingAtCamera = false;
-
-
-                    
+                    if (!(engaged[i] ==DetectionResult.Yes)) allBodiesLookingAtCamera = false;
 
                 }
+
+                if (bodies[i]!=null && bodies[i].IsTracked)
+                {
+                    System.Diagnostics.Debug.Write("UserID=" + i);
+                    if(mouth[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", mouthopen");
+                    if(eyeRight[i] == DetectionResult.Yes && eyeLeft[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", eyesclosed");
+                    if(engaged[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", engaged");
+                    if (expression[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", happy");
+                    if (glasses[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", glasses"); 
+                    System.Diagnostics.Debug.WriteLine("");
+                }
+
             }
 
             if (trackedBodyCount == 0) allBodiesLookingAtCamera = false;
@@ -429,7 +407,7 @@ namespace KinectTestv2
 
 
                     //dont display people with there eyes shut
-                    //if (eyesClosed[bodyIndexFrameData[i]]) continue;
+                    if (eyeRight[bodyIndexFrameData[i]] == DetectionResult.Yes && eyeLeft[bodyIndexFrameData[i]] == DetectionResult.Yes) continue;
                 }
 
                 //populate  vertices
@@ -437,139 +415,13 @@ namespace KinectTestv2
                 RGBpointCloud.Add(
                     new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
                     new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, 1.0f));
+           }
 
-
-
-
-                /*
-                //if this is the first pixel from a tracked body log the index of the tracked body
-                if (firstSeenbodyIndex == -1 && bodyIndexFrameData[i] != 0xff) firstSeenbodyIndex = bodyIndexFrameData[i];
-   
-
-                // add vertices of tracked bodies who do not have eyes closed
-                if (bodyIndexFrameData[i] != 0xff && !eyesClosed[bodyIndexFrameData[i]])
-                {
-                    vertexarray[3 * i + 0] = cameraPoints[i].X;
-                    vertexarray[3 * i + 1] = cameraPoints[i].Y;
-                    vertexarray[3 * i + 2] = cameraPoints[i].Z;
-                }
-                
+            processedCloud.updateVertices(RGBpointCloud.Values.ToArray<OpenTK.Vector4>(), RGBpointCloud.Keys.ToArray<Vector3>());
             
-
-               
-
-                //check if pixel in bound of colour
-               
-                {
-                   
-                }
-
-                // add colour frame pixel colour to render array
-                else
-                {
-                    int idx = (int)p.X + colorWidth * (int)p.Y;
-
-                    rawcolorarray[3 * i + 0] = colourFrameData[4 * idx + 0] / 255f;
-                    rawcolorarray[3 * i + 1] = colourFrameData[4 * idx + 1] / 255f;
-                    rawcolorarray[3 * i + 2] = colourFrameData[4 * idx + 2] / 255f;
-
-
-                    if (bodyIndexFrameData[i] != 0xff)
-                    {
-                            
-                        //if first found person then display in coloured cloud point
-                        if (bodyIndexFrameData[i] == firstSeenbodyIndex)
-                        {
-
-                            colorarray[3 * i + 0] = colourFrameData[4 * idx + 0] / 255f;
-                            colorarray[3 * i + 1] = colourFrameData[4 * idx + 1] / 255f;
-                            colorarray[3 * i + 2] = colourFrameData[4 * idx + 2] / 255f;
-                        }
-
-                        //all other should be shadow (black) - using a gray background
-                        else
-                        {
-                            colorarray[3 * i + 0] = 0.0f;
-                            colorarray[3 * i + 1] = 0.0f;
-                            colorarray[3 * i + 2] = 0.0f;
-                        }
-                        
-                    }
-                }*/
-
-            }
-
-
-            rawCloud.updateVertices(RGBpointCloud.Values.ToArray<OpenTK.Vector4>(), RGBpointCloud.Keys.ToArray<Vector3>());
-            //processedCloud.updateVertices(rawcolorarray, rawvertexarray);
-
         }
-
 
         
-        private void FaceReaderFrameArrived(object sender, FaceFrameArrivedEventArgs e)
-        {
-            
-            System.Diagnostics.Debug.WriteLine("FaceReaderFrameArrived - " + System.DateTime.Now);
-            faceFrameGapCounter = 0;
-
-            
-            using (FaceFrame faceFrame = e.FrameReference.AcquireFrame())
-            {
-
-                if (faceFrame != null)
-                {
-                    // get the index of the face source from the face source array
-                    int index = -1;
-                    for (int i = 0; i < bodyCount; i++)
-                    {
-                        if (this.faceFrameSources[i] == faceFrame.FaceFrameSource)
-                        {
-                            index = i;
-                            break;
-                        }
-                    }
-
-                    // check if this face frame has valid face frame results
-                    if (faceFrame.FaceFrameResult != null)
-                    {
-                        //copy old faceframe result to prev array
-                        prevFaceFrameResults[index] = faceFrameResults[index];
-
-                        // store this face frame result to use later
-                        faceFrameResults[index] = faceFrame.FaceFrameResult;
-                        
-                    }
-
-                    else
-                    {
-                        // indicates that the latest face frame result from this reader is invalid
-                        this.faceFrameResults[index] = null;
-                    }
-                }
-            }
-           }
-            
-
-    
-
-
-
-    
-      
-
-
-      
-
-
-       
-
-
-       
-
-        private void FormMDImain_Load(object sender, EventArgs e)
-        {
-
-        }
+        
     }
 }

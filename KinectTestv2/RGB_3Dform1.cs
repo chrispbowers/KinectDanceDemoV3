@@ -22,18 +22,14 @@ namespace KinectTestv2
         public bool allBodiesLookingAtCamera = false;
         float fadeState = 1.0f;
 
-        OpenTK.GLControl glControl;
-        //frame sizes
-        static int depthWidth = 512;
-        static int depthHeight = 424;
-        static int bodyWidth = 512;
-        static int bodyHeight = 424;
-        static int colorWidth = 1920;
-        static int colorHeight = 1080;
-
+        OpenTK.GLControl glControl;  
+     
         //boolean to store loaded state of form as loaded form state is not properly support by GLControl. - Doh
         public bool loaded = false;
-        public bool rendered = false;
+        public bool render = true;
+       
+
+
         //model display and HID states
         private int _mouseStartX = 0;
         private int _mouseStartY = 0;
@@ -45,8 +41,6 @@ namespace KinectTestv2
         private float distanceS = 5;
         private float rotSpeed = 0.1f;
 
-
-
         public RGB_3Dform1()
         {
             InitializeComponent();
@@ -56,113 +50,29 @@ namespace KinectTestv2
             Controls.Add(glControl);
 
             glControl.Load += glControl_Load;
-            glControl.Paint += glControl_Paint;
             glControl.Resize += glControl1_Resize;
 
             glControl.MouseMove += new MouseEventHandler(glControl_MouseMove);
             glControl.MouseDown += new MouseEventHandler(glControl_MouseDown);
             glControl.MouseUp += new MouseEventHandler(glControl_MouseUp);
 
-
         }
-
-
 
         private void glControl_Load(object sender, EventArgs e)
         {
-
+            System.Diagnostics.Debug.WriteLine("glControl_Load:  OpenGL version " + GL.GetString(StringName.Version));
             loaded = true;
-
             //setup openGL
-            GL.ClearColor(1, 1, 1, 0);
-           
             SetupViewport();
-
-        }
-
-
-        private void glControl_Paint(object sender, PaintEventArgs e)
-        {
-            //System.Diagnostics.Debug.WriteLine("glControl_Paint");
-            //Render();
-        }
-
-        public void Render()
-        {
-           // System.Diagnostics.Debug.WriteLine("Render - " + System.DateTime.Now);
-            if (loaded && rendered)
-            {
-
-
-                //GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-                Vector3d eye = new Vector3d(0.0, 0.0, -1);
-                Vector3d target = new Vector3d(0.0, 0.0, 0.0);
-                Vector3d up = new Vector3d(0.0, 1.0, 0.0);
-                Matrix4d lookAt = Matrix4d.LookAt(eye, target, up);
-
-                //setup camera view
-                GL.MatrixMode(MatrixMode.Modelview);
-                GL.LoadIdentity();
-                GL.LoadMatrix(ref lookAt);
-
-                //setup openGL
-                GL.ClearColor(0.5f, 0.5f, 0.5f, 0.5f);
-                GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-
-                GL.Translate(0.0f, 0.0f, 2.0f);
-
-                GL.Rotate(angleY, 1.0f, 0, 0);
-                GL.Rotate(angleX, 0, 1.0f, 0);
-
-                if (allBodiesLookingAtCamera && fadeState > 0.0f)
-                    fadeState -= 0.1f;
-                else if (fadeState < 1.0f) fadeState += 0.1f;
-
-
-                GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-                GL.Enable(EnableCap.Blend);
-
-            
-              
-
-                GL.EnableClientState(ArrayCap.VertexArray);
-                GL.EnableClientState(ArrayCap.ColorArray);
-
-                GL.BindBuffer(BufferTarget.ArrayBuffer, vbo_id);
-                GL.VertexPointer(3, VertexPointerType.Float, Vector3.SizeInBytes, 0);
-
-                GL.BindBuffer(BufferTarget.ArrayBuffer, cbo_id);
-                GL.ColorPointer(4, ColorPointerType.Float, Vector4.SizeInBytes, 0);
-               
-
-                GL.DrawArrays(BeginMode.Points, 0, vbo_size);
-
-                GL.DeleteBuffer(vbo_id);
-                GL.DeleteBuffer(cbo_id);
-
-                GL.DisableClientState(ArrayCap.VertexArray);
-                GL.DisableClientState(ArrayCap.ColorArray);
-
-
-                glControl.SwapBuffers();
-
-
-                
-
-            }
-            
         }
 
         private void glControl1_Resize(object sender, EventArgs e)
         {
+            System.Diagnostics.Debug.WriteLine("glControl1_Resize");
+            //for some reason resize is launched prior to load - a known bug
             if (!loaded) return;
             SetupViewport();
-            glControl.Invalidate();
-          
-          
         }
-
 
         private void SetupViewport()
         {
@@ -173,11 +83,83 @@ namespace KinectTestv2
 
             GL.MatrixMode(MatrixMode.Projection);
             GL.LoadIdentity();
-            Matrix4d pers = Matrix4d.Perspective(70, w / h, 1, 1000);
+            Matrix4d pers = Matrix4d.Perspective(1.22173048, w / h, 1, 1000);
             GL.LoadMatrix(ref pers);
             GL.Viewport(0, 0, (int)w, (int)h);
 
+            // Setup parameters for Points
+            GL.PointSize(2f);
+            //GL.Enable(EnableCap.PointSmooth);
+            GL.Hint(HintTarget.PointSmoothHint, HintMode.Nicest);
+           
+
+
+
+
         }
+
+
+
+        public void Render()
+        {
+            System.Diagnostics.Debug.WriteLine("Render - " +  System.DateTime.Now);
+            if (!loaded || !render ) return;
+            
+            Vector3d eye = new Vector3d(0.0, 0.0, -1);
+            Vector3d target = new Vector3d(0.0, 0.0, 0.0);
+            Vector3d up = new Vector3d(0.0, 1.0, 0.0);
+            Matrix4d lookAt = Matrix4d.LookAt(eye, target, up);
+
+            //setup camera view
+            GL.MatrixMode(MatrixMode.Modelview);
+            GL.LoadIdentity();
+            GL.LoadMatrix(ref lookAt);
+
+            //setup openGL
+            GL.ClearColor(0.5f, 0.5f, 0.5f, 0.5f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            //adjust view
+            GL.Rotate(angleY, 1f, 0, 0);
+            GL.Rotate(-angleX, 0, 1f, 0);
+            GL.Translate(0.0f, 0.0f, -1f);
+            
+            //address opacity - depending on allBodiesLookingAtCamera
+            if (allBodiesLookingAtCamera && fadeState > 0.0f) fadeState -= 0.1f;
+            else if (fadeState < 1.0f) fadeState += 0.1f;
+            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+            GL.Enable(EnableCap.Blend);
+
+            //enable use of VBO
+            GL.EnableClientState(ArrayCap.VertexArray);
+            GL.EnableClientState(ArrayCap.ColorArray);
+
+            //push Vertex Buffer Object onto GPU
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo_id);
+            GL.VertexPointer(3, VertexPointerType.Float, Vector3.SizeInBytes, 0);
+
+            //push Colour Buffer Object onto GPU
+            GL.BindBuffer(BufferTarget.ArrayBuffer, cbo_id);
+            GL.ColorPointer(4, ColorPointerType.Float, Vector4.SizeInBytes, 0);
+               
+            //draw GPU buffers
+            GL.DrawArrays(BeginMode.Points, 0, vbo_size);
+
+            //Wipe buffers - should be needed but GC does not work so manual deletion to avoid catastrophic memory leak
+            GL.DeleteBuffer(vbo_id);
+            GL.DeleteBuffer(cbo_id);
+
+            //turn of VBO 
+            GL.DisableClientState(ArrayCap.VertexArray);
+            GL.DisableClientState(ArrayCap.ColorArray);
+
+            glControl.SwapBuffers();
+
+        }
+
+     
+    
+       
 
 
 
@@ -188,6 +170,9 @@ namespace KinectTestv2
 
            
             vbo_size = vertexarray.Length;
+
+            //no point in rendering nothing
+            if (vbo_size == 0) return;
 
             //load point cloud into a vertex buffer object
             GL.GenBuffers(1, out vbo_id);
@@ -203,17 +188,20 @@ namespace KinectTestv2
                           colorarray, BufferUsageHint.StreamDraw);
           
 
-            rendered = true;
+            render = true;
 
+            //start sync render 
             Render();
-            //glControl.Invalidate();
-           // glControl.Update();
         }
 
    
         private void glControl_MouseDown(object sender, EventArgs e)
         {
             MouseEventArgs ev = (e as MouseEventArgs);
+
+            System.Diagnostics.Debug.WriteLine("glControl_MouseDown: " + ev.X + ", " + ev.Y);
+
+           
             _mouseStartX = ev.X;
             _mouseStartY = ev.Y;
         }
@@ -222,6 +210,10 @@ namespace KinectTestv2
         private void glControl_MouseUp(object sender, EventArgs e)
         {
             MouseEventArgs ev = (e as MouseEventArgs);
+
+            System.Diagnostics.Debug.WriteLine("glControl_MouseUp: " + ev.X + ", " + ev.Y);
+
+           
             angleXS = angleX;
             angleYS = angleY;
             distanceS = distance;
@@ -231,6 +223,8 @@ namespace KinectTestv2
         private void glControl_MouseMove(object sender, EventArgs e)
         {
             MouseEventArgs ev = (e as MouseEventArgs);
+            System.Diagnostics.Debug.WriteLine("glControl_MouseMove: " + ev.X + ", " + ev.Y);
+
             if (ev.Button == MouseButtons.Left)
             {
                 angleX = angleXS + (ev.X - _mouseStartX) * rotSpeed;
