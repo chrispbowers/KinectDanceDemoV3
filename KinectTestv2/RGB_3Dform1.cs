@@ -20,14 +20,13 @@ namespace KinectTestv2
         int vbo_size;
 
         public bool allBodiesLookingAtCamera = false;
-        float fadeState = 1.0f;
 
         OpenTK.GLControl glControl;  
      
         //boolean to store loaded state of form as loaded form state is not properly support by GLControl. - Doh
         public bool loaded = false;
         public bool render = true;
-       
+        public bool cameraSweepMode = false;
 
 
         //model display and HID states
@@ -88,11 +87,10 @@ namespace KinectTestv2
             GL.Viewport(0, 0, (int)w, (int)h);
 
             // Setup parameters for Points
-            GL.PointSize(2f);
-            //GL.Enable(EnableCap.PointSmooth);
+            //GL.PointSize(2f);
+            GL.Enable(EnableCap.PointSmooth);
             GL.Hint(HintTarget.PointSmoothHint, HintMode.Nicest);
-           
-
+          
 
 
 
@@ -104,8 +102,16 @@ namespace KinectTestv2
         {
             System.Diagnostics.Debug.WriteLine("Render - " +  System.DateTime.Now);
             if (!loaded || !render ) return;
+
             
             Vector3d eye = new Vector3d(0.0, 0.0, -1);
+            
+            if (cameraSweepMode) {
+                var timeSpan = 0.5 * (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
+                eye = new Vector3d(0.5 * Math.Sin(timeSpan),  0.1 * (1.0 + Math.Cos(timeSpan)), -1);
+            }
+            
+
             Vector3d target = new Vector3d(0.0, 0.0, 0.0);
             Vector3d up = new Vector3d(0.0, 1.0, 0.0);
             Matrix4d lookAt = Matrix4d.LookAt(eye, target, up);
@@ -125,8 +131,6 @@ namespace KinectTestv2
             GL.Translate(0.0f, 0.0f, -1f);
             
             //address opacity - depending on allBodiesLookingAtCamera
-            if (allBodiesLookingAtCamera && fadeState > 0.0f) fadeState -= 0.1f;
-            else if (fadeState < 1.0f) fadeState += 0.1f;
             GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
             GL.Enable(EnableCap.Blend);
 
@@ -154,7 +158,7 @@ namespace KinectTestv2
             GL.DisableClientState(ArrayCap.ColorArray);
 
             glControl.SwapBuffers();
-
+            
         }
 
      
@@ -170,9 +174,6 @@ namespace KinectTestv2
 
            
             vbo_size = vertexarray.Length;
-
-            //no point in rendering nothing
-            if (vbo_size == 0) return;
 
             //load point cloud into a vertex buffer object
             GL.GenBuffers(1, out vbo_id);

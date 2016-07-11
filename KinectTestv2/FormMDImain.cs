@@ -7,6 +7,7 @@ using Microsoft.Kinect;
 using OpenTK;
 using Microsoft.Kinect.Face;
 using Gma.System.MouseKeyHook;
+using System.Windows.Input;
 
 namespace KinectTestv2
 {
@@ -19,11 +20,7 @@ namespace KinectTestv2
         int maxFaceFrameGap = 5;
 
         //how many face frames should the face propery exists before we act
-        int mouthWindowSize = 1;
-        int eyeWindowSize = 4;
-        int engagedWindowSize = 1;
-        int expressionWindowSize = 1;
-        int glassesWindowSize = 1;
+        int eyeWindowSize = 2;
 
         //frame sizes
         static int depthWidth = 512;
@@ -33,6 +30,9 @@ namespace KinectTestv2
         static int colorWidth = 1920;
         static int colorHeight = 1080;
 
+        static int EyesOpen = 0;
+        static int EyesWink = 1;
+        static int EyesClosed = 2;
 
         bool colorFrameProcessed = false;
         bool depthFrameProcessed = false;
@@ -41,37 +41,34 @@ namespace KinectTestv2
         int faceFrameGapCounter = 0;
 
 
-        Bitmap outputImage = null;
-
         //windows form components
         RGB_3Dform1 processedCloud;
         ColourForm colourForm;
 
         //demo states
-        Graphics graphics;
-        int firstSeenbodyIndex = -1;
         int bodyCount;
-        bool displayRaw = false;
-        bool allBodiesLookingAtCamera = true;
-
-        //user face expression states
-        int[] mouthCount;
-        int[] eyeRightCount;
-        int[] eyeLeftCount;
-        int[] engagedCount;
-        int[] expressionCount;
-        int[] glassesCount;
-
-        DetectionResult[] mouth;
-        DetectionResult[] eyeRight;
-        DetectionResult[] eyeLeft;
-        DetectionResult[] engaged;
-        DetectionResult[] expression;
-        DetectionResult[] glasses;
+        int indexBodyCount = 0;
+        bool fadeEnabled = false;
+        bool displayRaw = true;
+        bool fadeStarted = false;
+        bool bottomEffect = true;
+        float fadeState = 1.0f;
+        static float fadeOutRate = 0.9f;
+        static int fadeHeldLength = 100;
+        static float fadeInRate = 1.1f;
+        int fadeIndex = 0;
 
        
 
-        private IKeyboardMouseEvents m_GlobalHook;
+        //user face expression states
+        int[] winkCount;
+        int[] eyesClosedCount;
+
+        
+
+        int[] eyes;
+
+       
 
 
         // Store kinekt frames and data
@@ -100,9 +97,6 @@ namespace KinectTestv2
         {
             InitializeComponent();
 
-            //setup key hooks
-            m_GlobalHook = Hook.GlobalEvents();
-            m_GlobalHook.KeyPress += KeyPress;
 
             //get instance of sensor - only one sensor allowed
             _sensor = KinectSensor.GetDefault();
@@ -117,20 +111,9 @@ namespace KinectTestv2
                 bodyCount = _sensor.BodyFrameSource.BodyCount;
 
                 //user face expression states counter
-                mouthCount = new int[bodyCount];
-                eyeRightCount = new int[bodyCount];
-                eyeLeftCount = new int[bodyCount];
-                engagedCount = new int[bodyCount];
-                expressionCount = new int[bodyCount];
-                glassesCount = new int[bodyCount];
-
-                mouth = new DetectionResult[bodyCount];
-                eyeRight = new DetectionResult[bodyCount];
-                eyeLeft = new DetectionResult[bodyCount];
-                engaged = new DetectionResult[bodyCount];
-                expression = new DetectionResult[bodyCount];
-                glasses = new DetectionResult[bodyCount];
-
+                eyesClosedCount = new int[bodyCount];
+                winkCount = new int[bodyCount];
+                eyes = new int[bodyCount];
                
 
                 FaceFrameFeatures faceFeatures = FaceFrameFeatures.BoundingBoxInColorSpace |
@@ -176,28 +159,21 @@ namespace KinectTestv2
 
         }
 
-        private void KeyPress(object sender, System.Windows.Forms.KeyPressEventArgs e)
-        {
-            switch (e.KeyChar)
-            {
-                case 'r':
-                    displayRaw = !displayRaw;
-                    break;
-
-
-                case 'p':
-                    if (_sensor.IsOpen) _sensor.Close();
-                    else _sensor.Open();
-                    break;
-
-            }
-        }
-
+   
 
         private void MultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
             //System.Diagnostics.Debug.WriteLine("MultiSourceFrameArrived - " + faceFrameGapCounter + " - " + System.DateTime.Now);
 
+            //if paused then don't handle main loop
+            if (Keyboard.GetKeyStates(Key.P) == KeyStates.Toggled) return;
+            displayRaw = Keyboard.GetKeyStates(Key.R) != KeyStates.Toggled;
+            bottomEffect = Keyboard.GetKeyStates(Key.B) != KeyStates.Toggled;
+            fadeEnabled = Keyboard.GetKeyStates(Key.F) == KeyStates.Toggled;
+            if (Keyboard.GetKeyStates(Key.Z) == KeyStates.Down) fadeStarted = true;
+            processedCloud.cameraSweepMode = Keyboard.GetKeyStates(Key.C) == KeyStates.Toggled;
+            
+            
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
             colorFrameProcessed = false;
@@ -212,6 +188,7 @@ namespace KinectTestv2
             {
                 if (bodyFrame != null)
                 {
+                    indexBodyCount = 0;
                     bodyFrame.GetAndRefreshBodyData(bodies);
 
                     // iterate through each face source
@@ -219,7 +196,7 @@ namespace KinectTestv2
                     {
                         if (bodies[i].IsTracked)
                         {
-                         
+                            indexBodyCount++;
                             // check if a valid face is tracked in this face source
                             if (!faceFrameSources[i].IsTrackingIdValid)
                             {
@@ -313,68 +290,63 @@ namespace KinectTestv2
    
             int trackedBodyCount = 0;
 
+
             for (int i = 0; i < bodyCount; i++)
             {
                 if (prevFaceFrameResults[i] != null && faceFrameResults[i] != null)
                 {
-                    
 
-                    //mouth
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen] == prevFaceFrameResults[i].FaceProperties[FaceProperty.MouthOpen]) mouthCount[i]++;
-                    else mouthCount[i] = 0;
-                    if (mouthCount[i] >= mouthWindowSize) mouth[i] = faceFrameResults[i].FaceProperties[FaceProperty.MouthOpen];
+                    //eyes closed  or wink
+                    if (faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed]  
+                        &&
+                        faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed])
+                        eyesClosedCount[i]++;
+                    else eyesClosedCount[i] = 0;
+                    if (eyesClosedCount[i] >= eyeWindowSize)
+                    {
+                        if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == DetectionResult.Yes 
+                            && 
+                            faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == DetectionResult.Yes) eyes[i] = EyesClosed;
+
+                        else if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] != DetectionResult.Yes
+                            &&
+                            faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] != DetectionResult.Yes) eyes[i] = EyesOpen;
+
+                        else eyes[i] = EyesWink;
                         
-                    //eyes right
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed]) eyeRightCount[i]++;
-                    else eyeRightCount[i] = 0;
-                    if (eyeRightCount[i] >= eyeWindowSize) eyeRight[i] = faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed];
-
-                    //eyes left
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed]) eyeLeftCount[i]++;
-                    else eyeLeftCount[i] = 0;
-                    if (eyeLeftCount[i] >= eyeWindowSize) eyeLeft[i] = faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed];
-
-                    //engaged
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.Engaged] == prevFaceFrameResults[i].FaceProperties[FaceProperty.Engaged]) engagedCount[i]++;
-                    else engagedCount[i] = 0;
-                    if (engagedCount[i] > engagedWindowSize) engaged[i] = faceFrameResults[i].FaceProperties[FaceProperty.Engaged];
-
-                    //expression
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.Happy] == prevFaceFrameResults[i].FaceProperties[FaceProperty.Happy]) expressionCount[i]++;
-                    else expressionCount[i] = 0;
-                    if (expressionCount[i] > expressionWindowSize) expression[i] = faceFrameResults[i].FaceProperties[FaceProperty.Happy];
-
-                    //glasses
-                    if (faceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses] == prevFaceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses]) glassesCount[i]++;
-                    else glassesCount[i] = 0;
-                    if (glassesCount[i] > glassesWindowSize) glasses[i] = faceFrameResults[i].FaceProperties[FaceProperty.WearingGlasses];
-
-                  
-                    //check to see if all bodies are looking at the camera
-                    trackedBodyCount++;
-                    if (!(engaged[i] ==DetectionResult.Yes)) allBodiesLookingAtCamera = false;
+                    }
+                   
 
                 }
 
-                if (bodies[i]!=null && bodies[i].IsTracked)
+                if (eyes[i] == EyesWink && fadeEnabled) {
+                    fadeStarted = true;
+                    System.Diagnostics.Debug.Write("WINKER!!!!");
+                }
+
+                
+                    //System.Diagnostics.Debug.Write("UserID=" + i + " eyes = " + eyes[i]);
+                    //System.Diagnostics.Debug.WriteLine("");
+                
+               
+            }
+            
+           
+            if (fadeStarted)
+            {
+                if (fadeIndex == 0 && fadeState > 0.01f) fadeState = Math.Max(0.0f, fadeState * fadeOutRate);  //fade in
+                else if (fadeState == 1.0f && fadeIndex >= fadeHeldLength)
                 {
-                    System.Diagnostics.Debug.Write("UserID=" + i);
-                    if(mouth[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", mouthopen");
-                    if(eyeRight[i] == DetectionResult.Yes && eyeLeft[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", eyesclosed");
-                    if(engaged[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", engaged");
-                    if (expression[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", happy");
-                    if (glasses[i] == DetectionResult.Yes) System.Diagnostics.Debug.Write(", glasses"); 
-                    System.Diagnostics.Debug.WriteLine("");
-                }
+                    fadeIndex = 0; fadeStarted = false;
+                } //fade reset
+                else if (fadeIndex >= fadeHeldLength) fadeState = Math.Min(1.0f, fadeState * fadeInRate);     //fade out
+               
+                else fadeIndex++; //fade hold
 
             }
+                 
+            //System.Diagnostics.Debug.WriteLine("Fade state " + fadeState);
 
-            if (trackedBodyCount == 0) allBodiesLookingAtCamera = false;
-
-            processedCloud.allBodiesLookingAtCamera = allBodiesLookingAtCamera;
-
-
-            //if (allBodiesLookingAtCamera) System.Diagnostics.Debug.WriteLine("all looking");
 
 
         }
@@ -384,6 +356,7 @@ namespace KinectTestv2
         public void CreateVertices()
         {
 
+            int highestPersonFound = -1;
 
             RGBpointCloud = new Dictionary<Vector3, OpenTK.Vector4>();
 
@@ -399,19 +372,60 @@ namespace KinectTestv2
                 ColorSpacePoint p = colorPoints[i];
                 if (p.X < 0 || p.Y < 0 || p.X > colorWidth || p.Y > colorHeight) continue;
 
+                int idx = (int)p.X + colorWidth * (int)p.Y;
+
+                
+
                 //if filtering data account for following exceptions
                 if (!displayRaw)
                 {
                     //if background index (ie not allocated to a tracked body
                     if (bodyIndexFrameData[i] == 0xff) continue;
 
+                    //dont display people with their eyes shut
+                    if (eyes[bodyIndexFrameData[i]] == EyesClosed) continue;
 
-                    //dont display people with there eyes shut
-                    if (eyeRight[bodyIndexFrameData[i]] == DetectionResult.Yes && eyeLeft[bodyIndexFrameData[i]] == DetectionResult.Yes) continue;
+                    //the bottom effect
+                    if (indexBodyCount >= 2)
+                    {
+
+
+
+                        if (highestPersonFound < 0) highestPersonFound = bodyIndexFrameData[i];
+
+                        if (highestPersonFound == bodyIndexFrameData[i])
+                        {
+                            if (bottomEffect)
+                            {
+                                RGBpointCloud.Add(
+                                    new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
+                                    new OpenTK.Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+                                continue;
+                            }
+
+                        }
+
+
+                    }
+
+                    //if a wink has been detected
+                    if (fadeStarted)
+                    {
+                        //and the current point does not belong to a winker
+                        if (eyes[bodyIndexFrameData[i]] != EyesWink)
+                        {
+                            //display cloud point with a fadestate 
+                            RGBpointCloud.Add(
+                                new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
+                                new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, fadeState));
+
+                            //otherwise behave normally
+                            continue;
+                        }
+                    }
                 }
-
-                //populate  vertices
-                int idx = (int)p.X + colorWidth * (int)p.Y;
+                
+                //default case - populate  vertices with RGB colour 
                 RGBpointCloud.Add(
                     new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
                     new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, 1.0f));

@@ -40,6 +40,8 @@ namespace KinectTestv2
             pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             pictureBox.Paint += new System.Windows.Forms.PaintEventHandler(this.pictureBox_Paint);
             Resize += resize;
+
+            
         }
 
         private void resize(object sender, EventArgs e)
@@ -56,6 +58,7 @@ namespace KinectTestv2
             // Next get the frame's description and create an output bitmap image.
             bitmap = new Bitmap(colorWidth, colorHeight, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
 
+
             // Next, we create the raw data pointer for the bitmap, as well as the size of the image's data.
             BitmapData imageData = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.WriteOnly, bitmap.PixelFormat);
 
@@ -67,7 +70,8 @@ namespace KinectTestv2
             bitmap.UnlockBits(imageData);
 
             pictureBox.Image = bitmap;
-           pictureBox.Update(); //force sync update
+            //pictureBox.Image.RotateFlip(RotateFlipType.RotateNoneFlipX); //Too Slow!
+            pictureBox.Update(); //force sync update
            
         }
 
