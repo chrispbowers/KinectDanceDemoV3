@@ -107,8 +107,8 @@ namespace KinectTestv2
             Vector3d eye = new Vector3d(0.0, 0.0, -1);
             
             if (cameraSweepMode) {
-                var timeSpan = 0.5 * (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
-                eye = new Vector3d(0.5 * Math.Sin(timeSpan),  0.1 * (1.0 + Math.Cos(timeSpan)), -1);
+                var timeSpan = 0.2 * (DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds;
+                eye = new Vector3d(0.3 * Math.Sin(timeSpan),  0.1 * (1.0 + Math.Cos(timeSpan)), -1);
             }
             
 

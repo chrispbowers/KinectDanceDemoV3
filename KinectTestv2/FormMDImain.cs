@@ -20,7 +20,7 @@ namespace KinectTestv2
         int maxFaceFrameGap = 5;
 
         //how many face frames should the face propery exists before we act
-        int eyeWindowSize = 10;
+        int eyeWindowSize = 5;
 
         //frame sizes
         static int depthWidth = 512;
@@ -48,32 +48,25 @@ namespace KinectTestv2
         //demo states
         int bodyCount;
         int indexBodyCount = 0;
-        bool fadeEnabled = true;
+        bool fadeEnabled = false;
         bool displayRaw = true;
-
         bool bottomEffect = true;
-        float fadeState = 1.0f;
-        bool[] fadeStarted;
         static float fadeOutRate = 0.85f;
         static int fadeHeldLength = 25;
         static float fadeInRate = 1.2f;
-        int fadeIndex = 0;
+        
         bool bDestructFade = false;
 
        
-
         //user face expression states
         int[] winkCount;
         int[] eyesClosedCount;
-
-        
-
         int[] eyes;
+        bool[] fadeStarted;
+        float[] fadeState;
+        int[] fadeIndex;
 
-       
-
-
-        // Store kinekt frames and data
+        // Store kinect frames and data
         ColorSpacePoint[] colorPoints = new ColorSpacePoint[depthWidth * depthHeight];    // Maps depth pixels to rgb pixels
         CameraSpacePoint[] cameraPoints = new CameraSpacePoint[depthWidth * depthHeight];     // Maps depth pixels to 3d coordinates
         CoordinateMapper _mapper;
@@ -117,7 +110,9 @@ namespace KinectTestv2
                 winkCount = new int[bodyCount];
                 eyes = new int[bodyCount];
                 fadeStarted = new bool[bodyCount];
-               
+                fadeState = new float[] {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+                fadeIndex = new int[bodyCount];
+
 
                 FaceFrameFeatures faceFeatures = FaceFrameFeatures.BoundingBoxInColorSpace |
                                                  FaceFrameFeatures.FaceEngagement |
@@ -169,19 +164,52 @@ namespace KinectTestv2
             //System.Diagnostics.Debug.WriteLine("MultiSourceFrameArrived - " + faceFrameGapCounter + " - " + System.DateTime.Now);
 
             //if paused then don't handle main loop
-            if (Keyboard.GetKeyStates(Key.P) == KeyStates.Toggled) return;
-            displayRaw = Keyboard.GetKeyStates(Key.R) != KeyStates.Toggled;
-            bottomEffect = Keyboard.GetKeyStates(Key.B) != KeyStates.Toggled;
-            fadeEnabled = Keyboard.GetKeyStates(Key.F) == KeyStates.Toggled;
+            if (Keyboard.GetKeyStates(Key.P) == KeyStates.Toggled)
+            {
+                System.Diagnostics.Debug.WriteLine("PAUSED");
+                return;
+            }
+
+            if ((Keyboard.GetKeyStates(Key.R) == KeyStates.Toggled) == displayRaw)
+            {
+                displayRaw = !displayRaw;
+                if(displayRaw) System.Diagnostics.Debug.WriteLine("Raw ON");
+                else System.Diagnostics.Debug.WriteLine("Raw OFF");
+
+            }
+
+            if ((Keyboard.GetKeyStates(Key.B) == KeyStates.Toggled) == bottomEffect)
+            {
+                bottomEffect = !bottomEffect;
+                if (bottomEffect) System.Diagnostics.Debug.WriteLine("Shadow ON");
+                else System.Diagnostics.Debug.WriteLine("Shadow OFF");
+
+            }
+
+            if ((Keyboard.GetKeyStates(Key.F) == KeyStates.Toggled) == fadeEnabled)
+            {
+                fadeEnabled = !fadeEnabled;
+                if (fadeEnabled) System.Diagnostics.Debug.WriteLine("Fade ON");
+                else System.Diagnostics.Debug.WriteLine("Fade OFF");
+
+            }
+
+            if ((Keyboard.GetKeyStates(Key.C) == KeyStates.Toggled) != processedCloud.cameraSweepMode)
+            {
+                processedCloud.cameraSweepMode = !processedCloud.cameraSweepMode;
+                if (processedCloud.cameraSweepMode) System.Diagnostics.Debug.WriteLine("Camera Sweep ON");
+                else System.Diagnostics.Debug.WriteLine("Camera Sweep OFF");
+
+            }
             if (Keyboard.GetKeyStates(Key.Z) == KeyStates.Down)
             {
+                System.Diagnostics.Debug.WriteLine("Forced Fade");
                 fadeStarted = new bool[] { true, true, true, true, true, true };
-                bDestructFade = false;
+                //bDestructFade = false;
             }
-            processedCloud.cameraSweepMode = Keyboard.GetKeyStates(Key.C) == KeyStates.Toggled;
 
-            System.Diagnostics.Debug.WriteLine("RawON=" + displayRaw + "   BottomON=" + bottomEffect + "   fadeModeON=" + fadeEnabled);
 
+           
 
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
@@ -259,24 +287,12 @@ namespace KinectTestv2
 
                     faceFrameGapCounter = 0;
 
-                    // check if this face frame has valid face frame results
-                  //  if (faceFrame.FaceFrameResult != null)
-                    {
+                    //copy old faceframe result to prev array
+                    prevFaceFrameResults[i] = faceFrameResults[i];
+
+                    // store this face frame result to use later
+                    faceFrameResults[i] = faceFrame.FaceFrameResult;
                     
-                        //copy old faceframe result to prev array
-                        prevFaceFrameResults[i] = faceFrameResults[i];
-
-                        // store this face frame result to use later
-                        faceFrameResults[i] = faceFrame.FaceFrameResult;
-
-                    }
-
-              //      else
-              //      {
-               //         // indicates that the latest face frame result from this reader is invalid
-                //        faceFrameResults[i] = null;
-                 //   }
-                
                 }
             }
            
@@ -311,7 +327,7 @@ namespace KinectTestv2
                         faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == prevFaceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed])
                     {
                         eyesClosedCount[i]++;
-                        System.Diagnostics.Debug.WriteLine(eyesClosedCount[i]);
+                        //System.Diagnostics.Debug.WriteLine(eyesClosedCount[i]);
                     }
                     else
                     {
@@ -325,15 +341,6 @@ namespace KinectTestv2
                         if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == DetectionResult.Yes
                             &&
                             faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == DetectionResult.Yes) eyes[i] = EyesClosed;
-
-                        else if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] == DetectionResult.Yes
-                            &&
-                            faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] != DetectionResult.Yes) eyes[i] = EyesWink;
-
-                        else if (faceFrameResults[i].FaceProperties[FaceProperty.LeftEyeClosed] != DetectionResult.Yes
-                           &&
-                           faceFrameResults[i].FaceProperties[FaceProperty.RightEyeClosed] == DetectionResult.Yes) eyes[i] = EyesWink;
-
                         else eyes[i] = EyesOpen;
 
                         //System.Diagnostics.Debug.WriteLine("New state is " + eyes[i]);
@@ -343,17 +350,37 @@ namespace KinectTestv2
 
                 }
 
-                else eyes[i] = EyesOpen;
+                if (eyes[i] == EyesClosed && !fadeStarted[i] && fadeEnabled) {
+                    fadeStarted[i] = true;
+                    System.Diagnostics.Debug.Write("User " + i + " Closed eyes");
+                }
 
-                // if (eyes[i] == EyesWink && fadeEnabled) {
-                // fadeStarted = true;
-                // System.Diagnostics.Debug.Write("WINK!!!!  " + i);
-                // }
+
+                if (fadeStarted[i])
+                {
+                    System.Diagnostics.Debug.WriteLine("Fade state " + i + ", " + fadeState[i]);
+                    if (fadeIndex[i] == 0 && fadeState[i] > 0.01f) fadeState[i] = Math.Max(0.0f, fadeState[i] * fadeOutRate);  //fade in
+                    else if (fadeState[i] == 1.0f && fadeIndex[i] >= fadeHeldLength)
+                    {
+                        fadeIndex[i] = 0;
+                        fadeStarted[i] = false;
+                        bDestructFade = true;
+
+                        //System.Diagnostics.Debug.WriteLine("Fade Enabled " + index + ", " + fadeEnabled);
+                    } //fade reset
+
+                    else if (fadeIndex[i] >= fadeHeldLength) fadeState[i] = Math.Min(1.0f, fadeState[i] * fadeInRate);     //fade out
+
+                    else fadeIndex[i]++; //fade hold
+
+                }
+
+
 
                 if (bodies[i] != null && bodies[i].IsTracked)
                 {
-                    //    System.Diagnostics.Debug.Write("UserID=" + i + " eyes = " + eyes[i]);
-                    //     System.Diagnostics.Debug.WriteLine("");
+                        //System.Diagnostics.Debug.Write("UserID=" + i + " eyes = " + eyes[i]);
+                         //System.Diagnostics.Debug.WriteLine("");
                 }
 
 
@@ -373,26 +400,9 @@ namespace KinectTestv2
         public void CreateVertices()
         {
 
-            System.Diagnostics.Debug.WriteLine("Fade Enabled " + fadeEnabled);
+            //System.Diagnostics.Debug.WriteLine("Fade Enabled " + fadeEnabled);
 
-            if (fadeStarted.Contains(true) && !bDestructFade)
-            {
-                System.Diagnostics.Debug.WriteLine("Fade state " + fadeState);
-                if (fadeIndex == 0 && fadeState > 0.01f) fadeState = Math.Max(0.0f, fadeState * fadeOutRate);  //fade in
-                else if (fadeState == 1.0f && fadeIndex >= fadeHeldLength)
-                {
-                    fadeIndex = 0;
-                    bDestructFade = true;
-
-                    System.Diagnostics.Debug.WriteLine("Fade Enabled " + fadeEnabled);
-                } //fade reset
-                
-                else if (fadeIndex >= fadeHeldLength) fadeState = Math.Min(1.0f, fadeState * fadeInRate);     //fade out
-
-                else fadeIndex++; //fade hold
-
-            }
-
+           
 
             int highestPersonFound = -1;
 
@@ -412,37 +422,31 @@ namespace KinectTestv2
 
                 int idx = (int)p.X + colorWidth * (int)p.Y;
 
-                
+
 
                 //if filtering data account for following exceptions
                 if (!displayRaw)
                 {
 
-                   
+                    int index = bodyIndexFrameData[i];
+
+
 
 
                     //if background index (ie not allocated to a tracked body
-                    if (bodyIndexFrameData[i] == 0xff) continue;
+                    if (index == 0xff) continue;
 
-                    if (highestPersonFound < 0) highestPersonFound = bodyIndexFrameData[i];
+                    if (highestPersonFound < 0) highestPersonFound = index;
 
-                    //dont display people with their eyes shut
-                    if (eyes[bodyIndexFrameData[i]] == EyesClosed)
-                    {
-                        if (fadeEnabled) fadeStarted[bodyIndexFrameData[i]] = true;
-                        else continue;
-               
-                    }
+                    //dont display people with their eyes shut unless we are fading them
+                    if (eyes[index] == EyesClosed && !fadeEnabled) continue;
+
+
 
                     //the bottom effect
                     if (indexBodyCount >= 2)
                     {
-
-
-
-                        
-
-                        if (highestPersonFound == bodyIndexFrameData[i])
+                        if (highestPersonFound == index)
                         {
                             if (bottomEffect)
                             {
@@ -453,28 +457,22 @@ namespace KinectTestv2
                             }
 
                         }
-
-
                     }
 
-                    //if a wink has been detected
-                    if (fadeStarted[bodyIndexFrameData[i]])
-                    {
-                       //display cloud point with a fadestate 
-                            RGBpointCloud.Add(
-                                new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
-                                new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, fadeState));
+                    RGBpointCloud.Add(
+                       new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
+                       new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, fadeState[index]));
 
-                            //otherwise behave normally
-                            continue;
-                        
-                    }
                 }
-                
-                //default case - populate  vertices with RGB colour 
-                RGBpointCloud.Add(
-                    new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
-                    new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, 1.0f));
+
+                else
+                {
+
+                    //default case - populate  vertices with RGB colour 
+                    RGBpointCloud.Add(
+                        new Vector3(cameraPoints[i].X, cameraPoints[i].Y, cameraPoints[i].Z),
+                        new OpenTK.Vector4(colourFrameData[4 * idx + 2] / 255f, colourFrameData[4 * idx + 1] / 255f, colourFrameData[4 * idx + 0] / 255f, 1.0f));
+                }
            }
 
             processedCloud.updateVertices(RGBpointCloud.Values.ToArray<OpenTK.Vector4>(), RGBpointCloud.Keys.ToArray<Vector3>());
