@@ -100,7 +100,7 @@ namespace KinectTestv2
 
         public void Render()
         {
-            System.Diagnostics.Debug.WriteLine("Render - " +  System.DateTime.Now);
+            //System.Diagnostics.Debug.WriteLine("Render - " +  System.DateTime.Now);
             if (!loaded || !render ) return;
 
             
