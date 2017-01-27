@@ -194,7 +194,7 @@ namespace KinectTestv2
 
             }
 
-            if ((Keyboard.GetKeyStates(Key.S) == KeyStates.Toggled) != processedCloud.cameraSweepMode)
+            if ((Keyboard.GetKeyStates(Key.C) == KeyStates.Toggled) != processedCloud.cameraSweepMode)
             {
                 processedCloud.cameraSweepMode = !processedCloud.cameraSweepMode;
                 if (processedCloud.cameraSweepMode) System.Diagnostics.Debug.WriteLine("Camera Sweep ON");
