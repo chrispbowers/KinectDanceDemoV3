@@ -220,6 +220,10 @@ namespace KinectTestv2
             distanceS = distance;
         }
 
+        private void RGB_3Dform1_Load(object sender, EventArgs e)
+        {
+
+        }
 
         private void glControl_MouseMove(object sender, EventArgs e)
         {

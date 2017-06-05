@@ -37,6 +37,7 @@
             this.ClientSize = new System.Drawing.Size(284, 261);
             this.Name = "RGB_3Dform1";
             this.Text = "RGB_3Dform1";
+            this.Load += new System.EventHandler(this.RGB_3Dform1_Load);
             this.ResumeLayout(false);
 
         }

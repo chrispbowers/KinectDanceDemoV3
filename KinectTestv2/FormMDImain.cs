@@ -20,7 +20,7 @@ namespace KinectTestv2
         int maxFaceFrameGap = 5;
 
         //how many face frames should the face propery exists before we act
-        int eyeWindowSize = 5;
+        int eyeWindowSize = 2;
 
         //frame sizes
         static int depthWidth = 512;
@@ -49,17 +49,17 @@ namespace KinectTestv2
         int bodyCount;
         int indexBodyCount = 0;
         bool fadeEnabled = false;
+        bool forceFadeEnabled = false;
         bool displayRaw = true;
         bool bottomEffect = true;
-        static float fadeOutRate = 0.85f;
+        static float fadeOutRate = 0.1f;
         static int fadeHeldLength = 25;
-        static float fadeInRate = 1.2f;
+        static float fadeInRate = 0.1f;
         
         bool bDestructFade = false;
 
        
         //user face expression states
-        int[] winkCount;
         int[] eyesClosedCount;
         int[] eyes;
         bool[] fadeStarted;
@@ -107,7 +107,6 @@ namespace KinectTestv2
 
                 //user face expression states counter
                 eyesClosedCount = new int[bodyCount];
-                winkCount = new int[bodyCount];
                 eyes = new int[bodyCount];
                 fadeStarted = new bool[bodyCount];
                 fadeState = new float[] {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
@@ -186,7 +185,10 @@ namespace KinectTestv2
 
             }
 
-            if ((Keyboard.GetKeyStates(Key.F) == KeyStates.Toggled) == fadeEnabled)
+           
+
+
+            if ((Keyboard.GetKeyStates(Key.F) == KeyStates.Toggled) != fadeEnabled)
             {
                 fadeEnabled = !fadeEnabled;
                 if (fadeEnabled) System.Diagnostics.Debug.WriteLine("Fade ON");
@@ -201,11 +203,13 @@ namespace KinectTestv2
                 else System.Diagnostics.Debug.WriteLine("Camera Sweep OFF");
 
             }
-            if (Keyboard.GetKeyStates(Key.Z) == KeyStates.Down)
+            if ((Keyboard.GetKeyStates(Key.Z) == KeyStates.Toggled) != forceFadeEnabled)
             {
-                System.Diagnostics.Debug.WriteLine("Forced Fade");
-                fadeStarted = new bool[] { true, true, true, true, true, true };
-                //bDestructFade = false;
+                forceFadeEnabled = !forceFadeEnabled;
+                System.Diagnostics.Debug.WriteLine("Force Fade");
+
+               fadeStarted = new bool[] { true, true, true, true, true, true };
+               
             }
 
 
@@ -359,7 +363,7 @@ namespace KinectTestv2
                 if (fadeStarted[i])
                 {
                     System.Diagnostics.Debug.WriteLine("Fade state " + i + ", " + fadeState[i]);
-                    if (fadeIndex[i] == 0 && fadeState[i] > 0.01f) fadeState[i] = Math.Max(0.0f, fadeState[i] * fadeOutRate);  //fade in
+                    if (fadeIndex[i] == 0 && fadeState[i] > 0.0f) fadeState[i] = Math.Max(0.0f, fadeState[i] -  fadeOutRate);  //fade in
                     else if (fadeState[i] == 1.0f && fadeIndex[i] >= fadeHeldLength)
                     {
                         fadeIndex[i] = 0;
@@ -369,7 +373,7 @@ namespace KinectTestv2
                         //System.Diagnostics.Debug.WriteLine("Fade Enabled " + index + ", " + fadeEnabled);
                     } //fade reset
 
-                    else if (fadeIndex[i] >= fadeHeldLength) fadeState[i] = Math.Min(1.0f, fadeState[i] * fadeInRate);     //fade out
+                    else if (fadeIndex[i] >= fadeHeldLength) fadeState[i] = Math.Min(1.0f, fadeState[i] + fadeInRate);     //fade out
 
                     else fadeIndex[i]++; //fade hold
 
