@@ -228,7 +228,7 @@ namespace KinectTestv2
         private void glControl_MouseMove(object sender, EventArgs e)
         {
             MouseEventArgs ev = (e as MouseEventArgs);
-            System.Diagnostics.Debug.WriteLine("glControl_MouseMove: " + ev.X + ", " + ev.Y);
+            //System.Diagnostics.Debug.WriteLine("glControl_MouseMove: " + ev.X + ", " + ev.Y);
 
             if (ev.Button == MouseButtons.Left)
             {

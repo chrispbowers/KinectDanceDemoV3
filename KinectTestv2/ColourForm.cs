@@ -37,7 +37,7 @@ namespace KinectTestv2
             coordinateMapper = mapper;
 
             pictureBox.Size = Size;
-            pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+            pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
             pictureBox.Paint += new System.Windows.Forms.PaintEventHandler(this.pictureBox_Paint);
             Resize += resize;
 
@@ -71,7 +71,7 @@ namespace KinectTestv2
 
             pictureBox.Image = bitmap;
             //pictureBox.Image.RotateFlip(RotateFlipType.RotateNoneFlipX); //Too Slow!
-            pictureBox.Update(); //force sync update
+
            
         }
 
