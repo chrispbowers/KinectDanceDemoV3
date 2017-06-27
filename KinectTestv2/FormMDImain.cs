@@ -20,7 +20,7 @@ namespace KinectTestv2
         int maxFaceFrameGap = 5;
 
         //how many face frames should the face propery exists before we act
-        int eyeWindowSize = 2;
+        int eyeWindowSize = 5;
 
         //frame sizes
         static int depthWidth = 512;
